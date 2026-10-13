@@ -23,7 +23,7 @@ export default function CutLog() {
     const h = location.hash.slice(1); if (TABS.some(t => t[0] === h)) setTab(h);
     const q = new URLSearchParams(location.search).get("fitbit");
     if (q) {
-      flash({ connected: "Fitbit connected. Steps are syncing.", cancelled: "Fitbit connection cancelled.", expired: "That took too long. Try connecting again.", failed: "Fitbit connection failed. Check the keys and redirect URL.", "not-configured": "Add your Fitbit keys to the server first (see Plan)." }[q] || "");
+      flash({ connected: "Google Health connected. Steps are syncing.", cancelled: "Google Health connection cancelled.", expired: "That took too long. Try connecting again.", failed: "Google Health connection failed. Check the client ID, secret and redirect URI.", "not-configured": "Add your Google client ID and secret to Vercel first (see Plan)." }[q] || "");
       history.replaceState(null, "", location.pathname + location.hash);
     }
     load();
@@ -33,13 +33,13 @@ export default function CutLog() {
     return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(iv); };
   }, [load, flash]);
 
-  // Pull fresh Fitbit steps when the app opens, at most every 15 minutes.
+  // Pull fresh Google Health steps when the app opens, at most every 15 minutes.
   const syncing = useRef(false);
   const syncFitbit = useCallback(async (force) => {
     if (!data?.fitbit?.connected || syncing.current) return;
     if (!force && data.fitbit.lastSync && Date.now() - new Date(data.fitbit.lastSync) < 15 * 60e3) return;
     syncing.current = true;
-    try { const r = await api("/api/fitbit/sync", { method: "POST" }); if (r.error) flash(r.error); await load(); if (force) flash("Steps synced from Fitbit"); }
+    try { const r = await api(`/api/fitbit/sync?today=${today()}`, { method: "POST" }); if (r.error) flash(r.error); await load(); if (force && !r.error) flash("Steps synced from Google Health"); }
     catch (e) { flash(e.message); } finally { syncing.current = false; }
   }, [data, load, flash]);
   useEffect(() => { syncFitbit(false); }, [data?.fitbit?.connected]); // eslint-disable-line
@@ -118,7 +118,7 @@ function Dashboard({ data }) {
       <div className="grid g4">
         <div className="panel tile"><div className="lbl">Calories today</div><div className="v">{fmt(T.k)} <span>/ {fmt(plan.kcal)}</span></div><Bar v={T.k} t={plan.kcal} /><span className={`chip ${left >= 0 ? "ok" : "over"}`}>{left >= 0 ? `${fmt(left)} left` : `${fmt(-left)} over`}</span></div>
         <div className="panel tile"><div className="lbl">Protein today</div><div className="v">{fmt(T.p)} <span>/ {plan.protein} g</span></div><Bar v={T.p} t={plan.protein} cls="p" /><span className={`chip ${T.p >= plan.protein ? "ok" : ""}`}>{T.p >= plan.protein ? "Protein hit" : `${fmt(plan.protein - T.p)} g to go`}</span></div>
-        <div className="panel tile"><div className="lbl">Steps today{days[t]?.steps == null && days[t]?.fitbitSteps != null ? " · Fitbit" : ""}</div><div className="v">{fmt(T.steps || 0)} <span>/ {fmt(plan.steps)}</span></div><Bar v={T.steps || 0} t={plan.steps} cls="s" /><span className={`chip ${T.steps >= plan.steps ? "ok" : ""}`}>{T.steps == null ? "Not synced yet" : T.steps >= plan.steps ? "Goal hit" : `${fmt(plan.steps - T.steps)} to go`}</span></div>
+        <div className="panel tile"><div className="lbl">Steps today{days[t]?.steps == null && days[t]?.fitbitSteps != null ? " · Google Health" : ""}</div><div className="v">{fmt(T.steps || 0)} <span>/ {fmt(plan.steps)}</span></div><Bar v={T.steps || 0} t={plan.steps} cls="s" /><span className={`chip ${T.steps >= plan.steps ? "ok" : ""}`}>{T.steps == null ? "Not synced yet" : T.steps >= plan.steps ? "Goal hit" : `${fmt(plan.steps - T.steps)} to go`}</span></div>
         <div className="panel tile"><div className="lbl">Training today</div><div className="v">{T.mins} <span>min</span></div><div className="muted small">{T.wo.length ? T.wo.map(w => w.type).join(" + ") : "Rest day so far"}</div></div>
       </div>
       <div className="grid g2">
@@ -201,8 +201,8 @@ function Log({ data, edit, flash }) {
             <form onSubmit={e => { e.preventDefault(); run({ op: "setSteps", steps: st }, "Steps saved"); setSt(""); }}>
               <h2>Steps</h2>
               <p className="note small">
-                {day.fitbitSteps != null ? `Fitbit: ${fmt(day.fitbitSteps)} steps.` : "No Fitbit steps for this day yet."}
-                {day.steps != null && <> You set {fmt(day.steps)} by hand, which overrides Fitbit. <button type="button" className="btn ghost sm" onClick={() => run({ op: "setSteps", steps: null }, "Using Fitbit steps")}>Use Fitbit</button></>}
+                {day.fitbitSteps != null ? `Google Health: ${fmt(day.fitbitSteps)} steps.` : "No Google Health steps for this day yet."}
+                {day.steps != null && <> You set {fmt(day.steps)} by hand, which overrides Google Health. <button type="button" className="btn ghost sm" onClick={() => run({ op: "setSteps", steps: null }, "Using Google Health steps")}>Use Google Health</button></>}
               </p>
               <div className="row" style={{ alignItems: "flex-end" }}>
                 <label>Enter steps by hand<input id="steps" type="number" inputMode="numeric" min="0" required value={st} onChange={e => setSt(e.target.value)} /></label>
@@ -255,7 +255,7 @@ function Plan({ data, setData, flash, syncFitbit, load }) {
     e.preventDefault();
     try { const r = await api("/api/plan", { method: "PUT", body: p }); setData(d => ({ ...d, plan: r.plan })); flash("Targets saved"); } catch (er) { flash(er.message); }
   }
-  async function disconnect() { await api("/api/fitbit/disconnect", { method: "POST" }); await load(); flash("Fitbit disconnected"); }
+  async function disconnect() { await api("/api/fitbit/disconnect", { method: "POST" }); await load(); flash("Google Health disconnected"); }
   async function doImport() {
     try { const r = await api("/api/import", { method: "POST", body: imp }); setImp(""); await load(); flash(`Imported ${r.imported} days`); } catch (e) { flash(e.message); }
   }
@@ -264,14 +264,14 @@ function Plan({ data, setData, flash, syncFitbit, load }) {
     <section className="grid g2">
       <div className="stack" style={{ gap: 16 }}>
         <div className="panel stack">
-          <h2>Fitbit & Google Health</h2>
-          {!f.configured ? <p className="note">Fitbit keys aren't set on the server yet. Add <span className="mono">FITBIT_CLIENT_ID</span> and <span className="mono">FITBIT_CLIENT_SECRET</span> in your hosting settings, then redeploy.</p>
+          <h2>Google Health steps</h2>
+          {!f.configured ? <p className="note">Google keys aren't set on the server yet. Add <span className="mono">GOOGLE_CLIENT_ID</span> and <span className="mono">GOOGLE_CLIENT_SECRET</span> in Vercel, then redeploy.</p>
             : f.connected ? <>
               <p className="note">Connected. Steps sync when you open the app and every morning.{f.lastSync && ` Last sync ${new Date(f.lastSync).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`}</p>
               <div className="btns"><button className="btn" onClick={() => syncFitbit(true)}>Sync now</button><button className="btn ghost" onClick={disconnect}>Disconnect</button></div>
             </> : <>
-              <p className="note">Sign in with the account your Fitbit uses (your Google account if you've moved it over) to pull in your daily steps.</p>
-              <a className="btn" href="/api/fitbit/connect">Connect Fitbit</a>
+              <p className="note">Sign in with the Google account your Fitbit syncs to, and your daily steps come in on their own.</p>
+              <a className="btn" href="/api/fitbit/connect">Connect Google Health</a>
             </>}
         </div>
         <div className="panel">
