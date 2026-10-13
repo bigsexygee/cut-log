@@ -48,7 +48,11 @@ export default function CutLog() {
 
   const edit = useCallback(async (date, op) => {
     const r = await api(`/api/days/${date}`, { method: "POST", body: op });
-    setData(d => ({ ...d, days: { ...d.days, [date]: { ...r.day, fitbitSteps: d.days[date]?.fitbitSteps } } }));
+    setData(d => {
+      const prev = d.days[date] || {}, day = { ...r.day, fitbitSteps: prev.fitbitSteps, synced: prev.synced };
+      if (day.weight == null && prev.synced?.weight) { day.weight = prev.synced.weight; day.weightSource = "scale"; if (prev.synced.bf) day.bf = prev.synced.bf; }
+      return { ...d, days: { ...d.days, [date]: day } };
+    });
     return r.day;
   }, []);
 
@@ -213,7 +217,9 @@ function Log({ data, edit, flash }) {
           <div className="panel">
             <form onSubmit={e => { e.preventDefault(); run({ op: "setWeight", weight: wi.w, bf: wi.bf }, "Weigh-in saved"); setWi({ w: "", bf: "" }); }}>
               <h2>Weigh-in</h2>
-              {day.weight && <p className="note small">Saved: {(+day.weight).toFixed(1)} lb{day.bf ? ` · ${day.bf}%` : ""}. <button type="button" className="btn ghost sm" onClick={() => run({ op: "setWeight", weight: null }, "Weigh-in cleared")}>Clear</button></p>}
+              {day.weight && (day.weightSource === "scale"
+                ? <p className="note small">From your scale via Google Health: {(+day.weight).toFixed(1)} lb{day.bf ? ` · ${day.bf}%` : ""}. Saving one here overrides it.</p>
+                : <p className="note small">Saved: {(+day.weight).toFixed(1)} lb{day.bf ? ` · ${day.bf}%` : ""}. <button type="button" className="btn ghost sm" onClick={() => run({ op: "setWeight", weight: null }, "Weigh-in cleared")}>Clear</button></p>)}
               <div className="row">
                 <label>Weight lb<input id="wiW" type="number" step="0.1" inputMode="decimal" min="80" required value={wi.w} onChange={e => setWi({ ...wi, w: e.target.value })} /></label>
                 <label>Body fat %<input id="wiB" type="number" step="0.1" inputMode="decimal" min="3" max="60" value={wi.bf} onChange={e => setWi({ ...wi, bf: e.target.value })} /></label>
@@ -264,13 +270,13 @@ function Plan({ data, setData, flash, syncFitbit, load }) {
     <section className="grid g2">
       <div className="stack" style={{ gap: 16 }}>
         <div className="panel stack">
-          <h2>Google Health steps</h2>
+          <h2>Google Health</h2>
           {!f.configured ? <p className="note">Google keys aren't set on the server yet. Add <span className="mono">GOOGLE_CLIENT_ID</span> and <span className="mono">GOOGLE_CLIENT_SECRET</span> in Vercel, then redeploy.</p>
             : f.connected ? <>
-              <p className="note">Connected. Steps sync when you open the app and every morning.{f.lastSync && ` Last sync ${new Date(f.lastSync).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`}</p>
+              <p className="note">Connected. Steps, weight and body fat sync when you open the app and every morning.{f.lastSync && ` Last sync ${new Date(f.lastSync).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`}</p>
               <div className="btns"><button className="btn" onClick={() => syncFitbit(true)}>Sync now</button><button className="btn ghost" onClick={disconnect}>Disconnect</button></div>
             </> : <>
-              <p className="note">Sign in with the Google account your Fitbit syncs to, and your daily steps come in on their own.</p>
+              <p className="note">Sign in with the Google account your Fitbit syncs to. Your steps, plus weigh-ins from a scale that syncs to Fitbit, come in on their own.</p>
               <a className="btn" href="/api/fitbit/connect">Connect Google Health</a>
             </>}
         </div>
