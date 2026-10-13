@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { exchangeCode, syncSteps } from "@/lib/fitbit";
+import { exchangeCode, syncSteps, redirectUri } from "@/lib/fitbit";
 
 export async function GET(req) {
   const q = req.nextUrl.searchParams;
@@ -17,7 +17,7 @@ export async function GET(req) {
     await syncSteps(30);
     return back("connected");
   } catch (e) {
-    console.error(e);
+    console.error("Google Health connect failed", { redirectUri: redirectUri(req), error: e.message });
     return back("failed");
   }
 }
