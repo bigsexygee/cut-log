@@ -50,7 +50,7 @@ function Amount({ food, slot, setSlot, onAdd, onBack, busy }) {
       <button className="btn" disabled={busy || n <= 0} onClick={() => onAdd({
         name: food.name, brand: food.brand, amount: label, slot,
         k: Math.round(m.k), p: r1(m.p), c: r1(m.c), f: r1(m.f), source: food.source, food,
-      })}>Add to {slot.toLowerCase()}</button>
+      })}>{busy ? "Adding…" : `Add to ${slot.toLowerCase()}`}</button>
     </div>
   );
 }
@@ -134,7 +134,7 @@ export default function FoodPicker({ date, initialSlot, onClose, onAdd }) {
             ))}
           </div>
           <label>Meal<select id="manSlot" value={slot} onChange={e => setSlot(e.target.value)}>{SLOTS.map(s => <option key={s}>{s}</option>)}</select></label>
-          <button className="btn" disabled={busy}>Add food</button>
+          <button className="btn" disabled={busy}>{busy ? "Adding…" : "Add food"}</button>
         </form>
       )}
     </>

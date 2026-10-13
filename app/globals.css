@@ -108,3 +108,9 @@ td{font-variant-numeric:tabular-nums}
 .login{max-width:360px;margin:12vh auto 0}
 .err{color:var(--warn);font-size:.85rem}
 @media (prefers-reduced-motion:reduce){.bar>i{transition:none}}
+.btn.done{background:var(--good);color:var(--bg);border-color:transparent}
+.btn[aria-busy=true]{opacity:.7;cursor:progress}
+.status{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9rem}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--ink-2);display:inline-block}
+.status.on i{background:var(--good)} .status.on{color:var(--good)}
+.status.off{color:var(--ink-2)}
