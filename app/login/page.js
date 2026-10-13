@@ -17,7 +17,7 @@ export default function Login() {
         <label>Password<input id="pw" type="password" autoComplete="current-password" value={pw} onChange={e => setPw(e.target.value)} autoFocus /></label>
         {err && <p className="err">{err}</p>}
         <button className="btn" disabled={busy || !pw}>Sign in</button>
-        <p className="note small">You stay signed in on this device for 6 months.</p>
+        <p className="note small">You stay signed in on this device for 6 months. <a href="/privacy">Privacy policy</a></p>
       </form>
     </div>
   );
