@@ -3,7 +3,7 @@
   --bg:#ECEFF2; --surface:#FFFFFF; --surface-2:#F5F7F9; --line:#D5DBE1;
   --ink:#111820; --ink-2:#4A5562; --ink-3:#6E7986;
   --accent:#2B55C0; --accent-ink:#FFFFFF; --accent-soft:#DCE4F7;
-  --protein:#B97A0B; --good:#1E7A4C; --warn:#B4541A; --track:#E2E7EC; --scrim:rgba(10,15,20,.45);
+  --protein:#B97A0B; --good:#1E7A4C; --warn:#B4541A; --danger:#C62828; --track:#E2E7EC; --scrim:rgba(10,15,20,.45);
   --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
@@ -13,7 +13,7 @@
   --bg:#0E1318; --surface:#161D24; --surface-2:#1C242C; --line:#2A343E;
   --ink:#E8EDF2; --ink-2:#A8B3BF; --ink-3:#7D8996;
   --accent:#7C9DF0; --accent-ink:#0E1318; --accent-soft:#1F2B47;
-  --protein:#E3A93A; --good:#4FC48A; --warn:#EE8A52; --track:#26303A; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
+  --protein:#E3A93A; --good:#4FC48A; --warn:#EE8A52; --danger:#E5534B; --track:#26303A; --scrim:rgba(0,0,0,.6); color-scheme:dark}}
 *{box-sizing:border-box}
 html,body{background:var(--bg);color:var(--ink);margin:0}
 body{font-family:var(--body);font-size:15px;line-height:1.45;padding:0 16px;padding-block:calc(16px + env(safe-area-inset-top,0px)) calc(96px + env(safe-area-inset-bottom,0px));-webkit-tap-highlight-color:transparent}
@@ -109,6 +109,9 @@ td{font-variant-numeric:tabular-nums}
 .err{color:var(--warn);font-size:.85rem}
 @media (prefers-reduced-motion:reduce){.bar>i{transition:none}}
 .btn.done{background:var(--good);color:var(--bg);border-color:transparent}
+.btn.alt{background:var(--danger);color:var(--bg);border-color:transparent}
+.status.on.done{background:var(--good);color:var(--bg);padding:6px 10px;border-radius:8px;align-self:flex-start}
+.status.on.done i{background:var(--bg)}
 .btn[aria-busy=true]{opacity:.7;cursor:progress}
 .status{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9rem}
 .status i{width:8px;height:8px;border-radius:50%;background:var(--ink-2);display:inline-block}

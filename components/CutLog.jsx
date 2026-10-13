@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BASELINE, SLOTS, addDays, api, fmt, nice, parse, slotNow, stepsOf, today, totals, weighins } from "./util";
 import { WeekChart, WeightChart } from "./Charts";
 import FoodPicker from "./FoodPicker";
-import { ActBtn, ActErr, useAction } from "./Action";
+import { ActBtn, ActErr, isDone, useAction } from "./Action";
 
 const TABS = [["dash", "Dashboard"], ["log", "Log"], ["hist", "History"], ["plan", "Plan"]];
 
@@ -12,6 +12,7 @@ export default function CutLog() {
   const [err, setErr] = useState("");
   const [tab, setTab] = useState("dash");
   const [toast, setToast] = useState("");
+  const [justOn, setJustOn] = useState(false);
   const tt = useRef();
   const flash = useCallback(m => { setToast(m); clearTimeout(tt.current); tt.current = setTimeout(() => setToast(""), 2400); }, []);
 
@@ -24,6 +25,7 @@ export default function CutLog() {
     const h = location.hash.slice(1); if (TABS.some(t => t[0] === h)) setTab(h);
     const q = new URLSearchParams(location.search).get("fitbit");
     if (q) {
+      if (q === "connected") setJustOn(true);
       flash({ connected: "Google Health connected. Steps are syncing.", cancelled: "Google Health connection cancelled.", expired: "That took too long. Try connecting again.", failed: "Google Health connection failed. Check the client ID, secret and redirect URI.", "not-configured": "Add your Google client ID and secret to Vercel first (see Plan)." }[q] || "");
       history.replaceState(null, "", location.pathname + location.hash);
     }
@@ -84,7 +86,7 @@ export default function CutLog() {
         {tab === "dash" && <Dashboard data={data} />}
         {tab === "log" && <Log data={data} edit={edit} flash={flash} />}
         {tab === "hist" && <History days={data.days} />}
-        {tab === "plan" && <Plan data={data} setData={setData} flash={flash} syncFitbit={syncFitbit} load={load} />}
+        {tab === "plan" && <Plan data={data} setData={setData} flash={flash} syncFitbit={syncFitbit} load={load} justOn={justOn} setJustOn={setJustOn} />}
       </>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
@@ -162,10 +164,13 @@ function Log({ data, edit, flash }) {
     setPending(key || op.op);
     try { await edit(date, op); flash(msg); } catch (e) { flash(e.message); } finally { setPending(null); }
   };
+  // Saved buttons stay green until you change that form or the day.
   const woA = useAction(), stA = useAction(), wiA = useAction();
-  const [wo, setWo] = useState({ type: "Strength", min: "", name: "" });
-  const [st, setSt] = useState("");
-  const [wi, setWi] = useState({ w: "", bf: "" });
+  const [wo, _setWo] = useState({ type: "Strength", min: "", name: "" });
+  const [st, _setSt] = useState("");
+  const [wi, _setWi] = useState({ w: "", bf: "" });
+  const setWo = v => { woA.reset(); _setWo(v); }, setSt = v => { stA.reset(); _setSt(v); }, setWi = v => { wiA.reset(); _setWi(v); };
+  useEffect(() => { woA.reset(); stA.reset(); wiA.reset(); }, [date]); // eslint-disable-line
   const bySlot = SLOTS.map(s => [s, (day.meals || []).filter(m => (m.slot || "Snacks") === s)]);
 
   return (
@@ -224,7 +229,7 @@ function Log({ data, edit, flash }) {
               <h2>Steps</h2>
               <p className="note small">
                 {day.fitbitSteps != null ? `Google Health: ${fmt(day.fitbitSteps)} steps.` : "No Google Health steps for this day yet."}
-                {day.steps != null && <> You set {fmt(day.steps)} by hand, which overrides Google Health. <button type="button" className="btn ghost sm" disabled={!!pending} onClick={() => run({ op: "setSteps", steps: null }, "Now using Google Health steps", "useGH")}>{pending === "useGH" ? "Switching…" : "Use Google Health"}</button></>}
+                {day.steps != null && <> You set {fmt(day.steps)} by hand, which overrides Google Health. <button type="button" className={`btn ghost sm${isDone(stA) ? " alt" : ""}`} disabled={!!pending} onClick={() => { stA.reset(); run({ op: "setSteps", steps: null }, "Now using Google Health steps", "useGH"); }}>{pending === "useGH" ? "Switching…" : "Use Google Health"}</button></>}
               </p>
               <div className="row" style={{ alignItems: "flex-end" }}>
                 <label>Enter steps by hand<input id="steps" type="number" inputMode="numeric" min="0" required value={st} onChange={e => setSt(e.target.value)} /></label>
@@ -238,7 +243,7 @@ function Log({ data, edit, flash }) {
               <h2>Weigh-in</h2>
               {day.weight && (day.weightSource === "scale"
                 ? <p className="note small">From your scale via Google Health: {(+day.weight).toFixed(1)} lb{day.bf ? ` · ${day.bf}%` : ""}. Saving one here overrides it.</p>
-                : <p className="note small">Saved: {(+day.weight).toFixed(1)} lb{day.bf ? ` · ${day.bf}%` : ""}. <button type="button" className="btn ghost sm" disabled={!!pending} onClick={() => run({ op: "setWeight", weight: null }, "Weigh-in cleared", "clearW")}>{pending === "clearW" ? "Clearing…" : "Clear"}</button></p>)}
+                : <p className="note small">Saved: {(+day.weight).toFixed(1)} lb{day.bf ? ` · ${day.bf}%` : ""}. <button type="button" className={`btn ghost sm${isDone(wiA) ? " alt" : ""}`} disabled={!!pending} onClick={() => { wiA.reset(); run({ op: "setWeight", weight: null }, "Weigh-in cleared", "clearW"); }}>{pending === "clearW" ? "Clearing…" : "Clear"}</button></p>)}
               <div className="row">
                 <label>Weight lb<input id="wiW" type="number" step="0.1" inputMode="decimal" min="80" required value={wi.w} onChange={e => setWi({ ...wi, w: e.target.value })} /></label>
                 <label>Body fat %<input id="wiB" type="number" step="0.1" inputMode="decimal" min="3" max="60" value={wi.bf} onChange={e => setWi({ ...wi, bf: e.target.value })} /></label>
@@ -271,27 +276,28 @@ function History({ days }) {
   );
 }
 
-function Plan({ data, setData, flash, syncFitbit, load }) {
+function Plan({ data, setData, flash, syncFitbit, load, justOn, setJustOn }) {
   const [p, setP] = useState(data.plan);
   const [imp, setImp] = useState("");
   const f = data.fitbit;
-  const field = (k, l, extra = {}) => <label>{l}<input id={`plan-${k}`} type="number" step="any" value={p[k]} onChange={e => setP({ ...p, [k]: e.target.value })} {...extra} /></label>;
-  const syncA = useAction(5000), discA = useAction(), saveA = useAction(), impA = useAction(5000), outA = useAction();
+  const field = (k, l, extra = {}) => <label>{l}<input id={`plan-${k}`} type="number" step="any" value={p[k]} onChange={e => { saveA.reset(); setP({ ...p, [k]: e.target.value }); }} {...extra} /></label>;
+  const syncA = useAction(), discA = useAction(), saveA = useAction(), impA = useAction(5000), outA = useAction();
   const [justOff, setJustOff] = useState(false);
   const [opening, setOpening] = useState(false);
   useEffect(() => { const r = () => setOpening(false); addEventListener("pageshow", r); return () => removeEventListener("pageshow", r); }, []);
   const when = t => new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const time = t => new Date(t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const save = e => { e.preventDefault(); saveA.run(async () => { const r = await api("/api/plan", { method: "PUT", body: p }); setData(d => ({ ...d, plan: r.plan })); setP(r.plan); }); };
-  const sync = () => syncA.run(async () => { const r = await syncFitbit(true); return `Synced ${time(r?.lastSync || Date.now())}`; });
+  const sync = () => syncA.run(async () => {
+    setJustOff(false); const r = await syncFitbit(true); return `Synced ${time(r?.lastSync || Date.now())}`; });
   // Only show "Disconnected" once the server confirms the link is gone.
-  const disconnect = () => discA.run(async () => {
+  const disconnect = () => { syncA.reset(); setJustOn(false); return discA.run(async () => {
     await api("/api/fitbit/disconnect", { method: "POST" });
     const d = await load();
     if (!d) throw new Error("Couldn't confirm. Check your connection and try again.");
     if (d.fitbit.connected) throw new Error("Still connected. Try again.");
     setJustOff(true);
-  });
+  }); };
   const doImport = () => impA.run(async () => { const r = await api("/api/import", { method: "POST", body: imp }); setImp(""); await load(); return `Imported ${r.imported} days`; });
   const signOut = () => outA.run(async () => { await api("/api/logout", { method: "POST" }); location.href = "/login"; return "Signed out"; });
   return (
@@ -301,18 +307,18 @@ function Plan({ data, setData, flash, syncFitbit, load }) {
           <h2>Google Health</h2>
           {!f.configured ? <p className="note">Google keys aren't set on the server yet. Add <span className="mono">GOOGLE_CLIENT_ID</span> and <span className="mono">GOOGLE_CLIENT_SECRET</span> in Vercel, then redeploy.</p>
             : f.connected ? <>
-              <div className="status on"><i />Connected{f.lastSync ? ` · last synced ${when(f.lastSync)}` : " · not synced yet"}</div>
+              <div className={`status on${justOn || isDone(syncA) ? " done" : ""}`}><i />{justOn ? "✓ " : ""}Connected{f.lastSync ? ` · last synced ${when(f.lastSync)}` : " · not synced yet"}</div>
               <p className="note">Steps, weight and body fat sync when you open the app and every morning.</p>
               <div className="btns">
                 <ActBtn act={syncA} label="Sync now" busy="Syncing…" done="Synced" disabled={discA.st === "busy"} onClick={sync} />
-                <ActBtn act={discA} className="btn ghost" label="Disconnect" busy="Disconnecting…" done="Disconnected" disabled={syncA.st === "busy"} onClick={disconnect} />
+                <ActBtn act={discA} className="btn ghost" label="Disconnect" busy="Disconnecting…" done="Disconnected" disabled={syncA.st === "busy"} other={justOn ? { st: "done" } : syncA} onClick={disconnect} />
               </div>
               <ActErr act={syncA} /><ActErr act={discA} />
             </> : <>
-              <div className="status off"><i />{justOff ? "✓ Disconnected" : "Not connected"}</div>
+              <div className={`status ${justOff ? "on done" : "off"}`}><i />{justOff ? "✓ Disconnected" : "Not connected"}</div>
               <p className="note">{justOff ? "The app no longer reads from Google Health. Steps and weigh-ins you already synced stay in your log." : "Sign in with the Google account your Fitbit syncs to. Your steps, plus weigh-ins from a scale that syncs to Fitbit, come in on their own."}</p>
               <ActErr act={syncA} />
-              <a className="btn" href="/api/fitbit/connect" aria-busy={opening} onClick={() => setOpening(true)}>{opening ? "Opening Google…" : justOff ? "Reconnect Google Health" : "Connect Google Health"}</a>
+              <a className={`btn${justOff ? " alt" : ""}`} href="/api/fitbit/connect" aria-busy={opening} onClick={() => setOpening(true)}>{opening ? "Opening Google…" : justOff ? "Reconnect Google Health" : "Connect Google Health"}</a>
             </>}
         </div>
         <div className="panel">
